@@ -10,8 +10,8 @@ int main() {
   /* Set the number of threads to 4 */
   omp_set_num_threads(4);
 
-  /* Fork a team of threads giving them their own copies of variables */
-  #pragma omp parallel private(nthreads, tid) 
+/* Fork a team of threads giving them their own copies of variables */
+#pragma omp parallel private(nthreads, tid)
   {
     /* Obtain and print thread id */
     tid = omp_get_thread_num();

@@ -101,18 +101,17 @@ int main(int argc, const char *argv[]) {
 
   /* Initailize additional data structures needed in the algorithm */
 
-
   init_time += duration_cast<dsec>(Clock::now() - init_start).count();
   printf("Initialization Time: %lf.\n", init_time);
 
   auto compute_start = Clock::now();
   double compute_time = 0;
 
-  /** 
+  /**
    * Implement the wire routing algorithm here
    * Feel free to structure the algorithm into different functions
    * Don't use global variables.
-   * Use OpenMP to parallelize the algorithm. 
+   * Use OpenMP to parallelize the algorithm.
    */
 
   compute_time += duration_cast<dsec>(Clock::now() - compute_start).count();

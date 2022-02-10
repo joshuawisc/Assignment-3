@@ -8,7 +8,8 @@
 
 #include <omp.h>
 
-typedef struct { /* Define the data structure for wire here */ } wire_t;
+typedef struct { /* Define the data structure for wire here */
+} wire_t;
 
 typedef int cost_t;
 

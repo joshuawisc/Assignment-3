@@ -1,4 +1,4 @@
-# /bin/python
+#!/usr/bin/env python
 import logging
 import sys
 
@@ -7,14 +7,15 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=FORMAT)
 LOG = logging.getLogger(__name__)
 
 help_message = '''
-usage: validate.py [-h] [-r ROUTE] [-c COST]
+usage: validate.py [-h] [-o OUTPUT] [-c COST] [-i INPUT]
 
-Validate the wire routing output and cost matrix
+Tests the correctness of the wire routing output and cost matrix
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -r ROUTE              Wire Routes for each wire
-  -c COST               Cost Array
+Arguments:
+  -h, --help            Show this help message and exit
+  -o OUTPUT             Outputted wire routes for each wire
+  -c COST               Cost array
+  -i INPUT              Input file
 '''
 
 def parse_args():
@@ -22,25 +23,42 @@ def parse_args():
     if '-h' in args or '--help' in args:
         print help_message
         sys.exit(1)
-    if '-r' not in args or '-c' not in args:
+    if '-o' not in args or '-c' not in args or '-i' not in args:
         print help_message
         sys.exit(1)
     parsed = {}
-    parsed['route'] = args[args.index('-r') + 1]
+    parsed['output'] = args[args.index('-o') + 1]
     parsed['cost'] = args[args.index('-c') + 1]
+    parsed['input'] = args[args.index('-i') + 1]
     return parsed
 
 
 def main(args):
     val = validate(args)
-    if val:
-        LOG.info('Validate succeeded.')
-    else:
-        LOG.info('Validation failed.')
-
+    print "Correctness: " + str(val)
 
 def validate(args):
-    route = open(args['route'], 'r')
+    # Input file
+    input = open(args['input'], 'r')
+    lines = input.readlines()
+    if len(lines) < 2:
+        LOG.error('''Input file contains has less than 2 lines,
+        please check for the input format''')
+        return False
+    dim = lines[0].split()
+    mi, ni = int(dim[0]), int(dim[1])
+    wires = int(lines[1])
+    if len(lines) != wires + 2:
+        LOG.error('Route : Expected # of wires %d, Actual # of wires %d' %(wires, len(lines) - 2))
+        return False
+    all_endpoints = set()
+    for i in range(2, len(lines)):
+        wire = lines[i].split()
+        endpoints = (int(wire[0]), int(wire[1]), int(wire[2]), int(wire[3]))
+        all_endpoints.add(endpoints)
+
+    # Route file
+    route = open(args['output'], 'r')
     # calculate cost matrix
     lines = route.readlines()
     if len(lines) < 2:
@@ -49,28 +67,41 @@ def validate(args):
         return False
     dim = lines[0].split()
     m, n = int(dim[0]), int(dim[1])
+    if m != mi or n != ni:
+        LOG.error('Input/output dimension mismatch.')
+        return False
     wires = int(lines[1])
-    print m, n, wires
-    #LOG.info('rows({}), cols({}), wires({})'.format(m, n, wires))
     if len(lines) != wires + 2:
-        LOG.error('Route : Expected # of wires {}, Actual # of wires {}'.
-                  format(wires, len(lines) - 2))
+        LOG.error('Route : Expected # of wires %d, Actual # of wires %d' %(wires, len(lines) - 2))
         return False
     cost_array = [[0] * n for _ in range(m)]
     for i in range(2, len(lines)):
         wire = lines[i]
         path = map(int, wire.split())
         if len(path) % 2 != 0:
-            LOG.error('Route: end points doesn\'t come in pairs in line {}'.
-                      format(i + 2))
+            LOG.error('Route: end points doesn\'t come in pairs in line %d' %(i + 2))
             return False
         points = [(path[2 * i], path[2 * i + 1]) for i in range(len(path) / 2)]
+        endpoints = (path[0], path[1], path[-2], path[-1])
+        if endpoints in all_endpoints:
+            all_endpoints.remove(endpoints)
+        else:
+            endpoints = (path[-2], path[-1], path[0], path[1])
+            if endpoints in all_endpoints:
+                all_endpoints.remove(endpoints)
+            else:
+                LOG.error('Route: endpoints not in input file (%d, %d) -> (%d, %d)' %(path[0], path[1], path[-2], path[-1]))
+                return False
         for j in range(len(points) - 1):
             add_cost(cost_array, points[j], points[j + 1])
             # remove the cost of the bending end points
             if j + 1 != len(points) - 1:
                 cost_array[points[j + 1][1]][points[j + 1][0]] -= 1
-    LOG.info('Cost Array constructed')
+    if len(all_endpoints) > 0:
+        LOG.error('Route: missing routes for %d path(s) in input file' %(len(all_endpoints)))
+        return False
+
+    # Cost file
     cost = open(args['cost'], 'r')
     lines = cost.readlines()
     dim = lines[0].split()
@@ -91,8 +122,7 @@ def validate(args):
         # check value
         for j in range(len(line)):
             if cost_array[i - 1][j] != line[j]:
-                LOG.error('Cost Array: Value mismatch at ({}, {})'.format(
-                    i - 1, j))
+                LOG.error('Cost Array: Value mismatch at (%d, %d): %d != %d' %(i - 1, j, cost_array[i-1][j], line[j]))
                 return False
     return True
 

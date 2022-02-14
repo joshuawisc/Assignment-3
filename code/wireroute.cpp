@@ -101,6 +101,8 @@ int main(int argc, const char *argv[]) {
 
   /* Initailize additional data structures needed in the algorithm */
 
+  /* Conduct initial wire placement */
+
   init_time += duration_cast<dsec>(Clock::now() - init_start).count();
   printf("Initialization Time: %lf.\n", init_time);
 

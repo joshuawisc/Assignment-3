@@ -13,8 +13,7 @@ typedef struct { /* Define the data structure for wire here */
 
 typedef int cost_t;
 
-const char *get_option_string(const char *option_name,
-                              const char *default_value);
+const char *get_option_string(const char *option_name, const char *default_value);
 int get_option_int(const char *option_name, int default_value);
 float get_option_float(const char *option_name, float default_value);
 

@@ -1,6 +1,6 @@
 /**
  * Parallel VLSI Wire Routing via OpenMP
- * Name 1(andrew_id 1), Name 2(andrew_id 2)
+ * Joshua Mathews(andrew_id 1), Nolan Mass(nmass)
  */
 
 #include "wireroute.h"
@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <omp.h>
+#include <string>
 
 static int _argc;
 static const char **_argv;
@@ -44,6 +45,56 @@ static void show_help(const char *program_path) {
     printf("\t-n <num_of_threads> (required)\n");
     printf("\t-p <SA_prob>\n");
     printf("\t-i <SA_iters>\n");
+}
+
+void serial(wire_t *wires, cost_t *costs, int num_of_wires, int dim_x, int dim_y) {
+    // Iterate over wires
+    int min_max_cost;
+    int min_sum_cost;
+    int bendx, bendy;
+    
+    for (int i = 0; i < num_of_wires; i++) {
+        // Iterate horizontally, then vertically
+        int x_start = std::min(wires[i].x[0], wires[i].x[3]);
+        int x_end = std::max(wires[i].x[0], wires[i].x[3]);
+        for (int x = x_start; x < x_end; x++) {
+            std::pair<int, int> result = checkcost(wires[i], x, wires[i].y[0]);
+            if (min_max_cost > result.first
+                    || (min_sum_cost > result.second && min_max_cost == result.first)) {
+                
+                min_max_cost = result.first;
+                min_sum_cost = result.second;
+                bendx = x;
+                bendy = wires[i].y[0];
+            }
+        }
+
+        // Iterate vertically
+        int y_start = std::min(wires[i].y[0], wires[i].y[3]);
+        int y_end = std::max(wires[i].y[0], wires[i].y[3]);
+        for (int y = y_start; y < y_end; y++) {
+            std::pair<int, int> result = checkcost(wires[i], wires[i].x[0], y);
+            if (min_max_cost > result.first
+                    || (min_sum_cost > result.second && min_max_cost == result.first)) {
+                
+                min_max_cost = result.first;
+                min_sum_cost = result.second;
+                bendx = wires[i].x[0];
+                bendy = y;
+            }
+        }
+
+        wires[i].x[1] = bendx;
+        wires[i].y[1] = bendy;
+        if (bendx = wires[i].x[0]) {
+            wires[i].x[2] = wires[i].x[3];
+            wires[i].y[2] = bendy;
+        } else {
+            wires[i].x[2] = bendx;
+            wires[i].y[2] = wires[i].y[3];
+        }
+    }
+    
 }
 
 int main(int argc, const char *argv[]) {
@@ -91,16 +142,59 @@ int main(int argc, const char *argv[]) {
 
     fscanf(input, "%d %d\n", &dim_x, &dim_y);
     fscanf(input, "%d\n", &num_of_wires);
-
+    printf("%dx%d, %d wires\n", dim_x, dim_y, num_of_wires);
     wire_t *wires = (wire_t *)calloc(num_of_wires, sizeof(wire_t));
     /* Read the grid dimension and wire information from file */
+    for (int i = 0 ; i < num_of_wires ; i++) {
+        fscanf(input, "%d %d %d %d\n", &(wires[i].x[0]), &(wires[i].y[0]), &(wires[i].x[3]), &(wires[i].y[3]));
+        // printf("Wire %d: %d %d %d %d\n", i, (wires[i].x1), (wires[i].x2), (wires[i].y1), (wires[i].y2));
+    }
 
     cost_t *costs = (cost_t *)calloc(dim_x * dim_y, sizeof(cost_t));
     /* Initialize cost matrix */
 
+
     /* Initailize additional data structures needed in the algorithm */
 
     /* Conduct initial wire placement */
+    for (int i = 0 ; i < num_of_wires ; i++) {
+        // bend 1 is (x1, y2)
+        wires[i].x[1] = wires[i].x[0];
+        wires[i].y[1] = wires[i].y[3];
+
+        // bend 2 is endpoint
+        wires[i].x[2] = wires[i].x[3];
+        wires[i].y[2] = wires[i].y[3];
+    }
+    
+    /*Set wire costs*/
+    for (int i = 0 ; i < num_of_wires ; i++) {
+        // p is the start point, p+1 is the end point
+        for (int p = 0; p < 3; p++) {
+            int x1 = wires[i].x[p];
+            int y1 = wires[i].y[p];
+            int x2 = wires[i].x[p+1];
+            int y2 = wires[i].y[p+1];
+            if (x1 == x2) {
+                int start = std::min(y1, y2);
+                int end = std::max(y1, y2);
+                int x = x1;
+                for (int y = start; y <= end; y++) {
+                    costs[y*dim_x + x]++;
+                }
+            }
+            else { // y1 == y2
+                int start = std::min(x1, x2);
+                int end = std::max(x1, x2);
+                int y = y1;
+                for (int x = start; x <= end; x++ ) {
+                    costs[y*dim_x + x]++;
+                }
+            }
+        }
+        costs[wires[i].y[1]*dim_x + wires[i].x[1]]--;
+        costs[wires[i].y[2]*dim_x + wires[i].x[2]]--;
+    }
 
     init_time += duration_cast<dsec>(Clock::now() - init_start).count();
     printf("Initialization Time: %lf.\n", init_time);
@@ -114,11 +208,38 @@ int main(int argc, const char *argv[]) {
      * Don't use global variables.
      * Use OpenMP to parallelize the algorithm.
      */
+    // Function to run the algorithm
+    serial(wires, costs, num_of_wires, dim_x, dim_y);
 
     compute_time += duration_cast<dsec>(Clock::now() - compute_start).count();
     printf("Computation Time: %lf.\n", compute_time);
 
     /* Write wires and costs to files */
+    std::string input_filename_stripped = std::string(input_filename).substr(17, std::string(input_filename).length() - 17 - 4);
+    std::string costs_filename = "costs_" + input_filename_stripped + "_" + std::to_string(num_of_threads) + ".txt";
+    std::string wires_filename = "output_" + input_filename_stripped + "_" + std::to_string(num_of_threads) + ".txt";
+    FILE *fpcosts = fopen(costs_filename.c_str(), "w+");
+    FILE *fpwires = fopen(wires_filename.c_str(), "w+");
 
+    // write costs
+    fprintf(fpcosts, "%d %d\n", dim_x, dim_y);
+    for (int y = 0; y < dim_y; y++) {
+        for (int x = 0; x < dim_x; x++) {
+            fprintf(fpcosts, "%d ", costs[y*dim_x + x]);
+        }
+        fprintf(fpcosts, "\n");
+    }
+
+    // write wires
+    fprintf(fpwires, "%d %d\n%d\n", dim_x, dim_y, num_of_wires);
+    for (int i = 0; i < num_of_wires ; i++) {
+        for (int p = 0; p < 4; p++) {
+            fprintf(fpwires, "%d %d ", wires[i].x[p], wires[i].y[p]);
+        }
+        fprintf(fpwires, "\n");
+    }
+
+    // fclose(fpcosts);
+    // fclose(fpwires);
     return 0;
 }

@@ -1,6 +1,6 @@
 /**
  * Parallel VLSI Wire Routing via OpenMP
- * Joshua Mathews(andrew_id 1), Nolan Mass(nmass)
+ * Joshua Mathews(jcmathew), Nolan Mass(nmass)
  */
 
 #include "wireroute.h"
@@ -18,6 +18,26 @@
 
 static int _argc;
 static const char **_argv;
+
+// Store data for chosen bend
+struct chosen {
+    int min_max_cost;
+    int min_sum_cost;
+    int bendx;
+    int bendy;
+};
+
+// Reducing function
+void minchosen(struct chosen *out, struct chosen *in) {
+    if (out->min_max_cost > in->min_max_cost || (out->min_sum_cost > in->min_sum_cost && out->min_max_cost == in->min_max_cost)) {
+        out->min_max_cost = in->min_max_cost;
+        out->min_sum_cost = in->min_sum_cost;
+        out->bendx = in->bendx;
+        out->bendy = in->bendy;
+    }
+}
+
+#pragma omp declare reduction(min : struct chosen : minchosen(&omp_out, &omp_in)) initializer( omp_priv = {INT_MAX, INT_MAX, 0, 0} )
 
 const char *get_option_string(const char *option_name, const char *default_value) {
     for (int i = _argc - 2; i >= 0; i -= 2)
@@ -270,33 +290,59 @@ void parallel(wire_t *wires, cost_t *costs, cost_t *costs_tr, int num_of_wires, 
             
         } else {
             // Iterate horizontally
-            #pragma omp parallel for num_threads(num_of_threads)
+            struct chosen min_hor = {INT_MAX, INT_MAX, bendx, bendy};
+
+            #pragma omp parallel for num_threads(num_of_threads) reduction(min: min_hor)
             for (int x = x_start; x < x_end; x++) {
                 std::pair<int, int> result = checkcost(wires[i], costs, costs_tr, x, wires[i].y[0], dim_x, dim_y, num_of_threads);
-                #pragma omp critical
-                if (min_max_cost > result.first
-                        || (min_sum_cost > result.second && min_max_cost == result.first)) {
-                    
-                    min_max_cost = result.first;
-                    min_sum_cost = result.second;
-                    bendx = x;
-                    bendy = wires[i].y[0];
-                }
+                struct chosen local = {result.first, result.second, x, wires[i].y[0]};
+                minchosen(&min_hor, &local);
+                // min_max_cost = result.first;
+                // min_sum_cost = result.second;
+                // bendx = x;
+                // bendy = wires[i].y[0];
             }
 
             // Iterate vertically
-            #pragma omp parallel for num_threads(num_of_threads)
+            struct chosen min_vert = {INT_MAX, INT_MAX, bendx, bendy};
+
+            #pragma omp parallel for num_threads(num_of_threads) reduction(min: min_vert)
             for (int y = y_start; y < y_end; y++) {
                 std::pair<int, int> result = checkcost(wires[i], costs, costs_tr, wires[i].x[0], y, dim_x, dim_y, num_of_threads);
-                #pragma omp critical
-                if (min_max_cost > result.first
-                        || (min_sum_cost > result.second && min_max_cost == result.first)) {
+                struct chosen local = {result.first, result.second, wires[i].x[0], y};
+                minchosen(&min_vert, &local);
+                // #pragma omp critical
+                // if (min_max_cost > result.first
+                //         || (min_sum_cost > result.second && min_max_cost == result.first)) {
                     
-                    min_max_cost = result.first;
-                    min_sum_cost = result.second;
-                    bendx = wires[i].x[0];
-                    bendy = y;
-                }
+                //     min_max_cost = result.first;
+                //     min_sum_cost = result.second;
+                //     bendx = wires[i].x[0];
+                //     bendy = y;
+                // }
+            }
+
+            // Min of horizontal and vertical
+
+            // If min_hor is less, choose it
+            if (min_vert.min_max_cost > min_hor.min_max_cost || 
+                (min_vert.min_sum_cost > min_hor.min_sum_cost && min_vert.min_max_cost == min_hor.min_max_cost)) {
+                min_max_cost = min_hor.min_max_cost;
+                min_sum_cost = min_hor.min_sum_cost;
+                bendx = min_hor.bendx;
+                bendy = min_hor.bendy;
+            } else {
+                min_max_cost = min_vert.min_max_cost;
+                min_sum_cost = min_vert.min_sum_cost;
+                bendx = min_vert.bendx;
+                bendy = min_vert.bendy;
+            }
+
+
+            // Set to first point if bends never updated
+            if (min_max_cost == INT_MAX) {
+                bendx = wires[i].x[1];
+                bendy = wires[i].y[1];
             }
         }
 
@@ -416,8 +462,8 @@ int main(int argc, const char *argv[]) {
 
     input_filename_stripped = input_filename_string.substr(input_filename_string.find_last_of("/\\") + 1);
     input_filename_stripped = input_filename_stripped.substr(0, input_filename_stripped.length() - 4);
-    printf(input_filename_stripped.c_str());
-    printf("\n");
+    // printf(input_filename_stripped.c_str());
+    // printf("\n");
     std::string costs_filename = "costs_" + input_filename_stripped + "_" + std::to_string(num_of_threads) + ".txt";
     std::string wires_filename = "output_" + input_filename_stripped + "_" + std::to_string(num_of_threads) + ".txt";
     FILE *fpcosts = fopen(costs_filename.c_str(), "w+");

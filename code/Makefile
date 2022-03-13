@@ -3,7 +3,7 @@ APP_NAME=wireroute
 OBJS=wireroute.o
 
 CXX = g++ -m64 -std=c++11
-CXXFLAGS = -I. -O3 -Wall -fopenmp -Wno-unknown-pragmas
+CXXFLAGS = -I. -O0 -Wall -fopenmp -Wno-unknown-pragmas
 
 default: $(APP_NAME)
 

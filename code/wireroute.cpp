@@ -273,6 +273,7 @@ void parallel(wire_t *wires, cost_t *costs, cost_t *costs_tr, int num_of_wires, 
             #pragma omp parallel for num_threads(num_of_threads)
             for (int x = x_start; x < x_end; x++) {
                 std::pair<int, int> result = checkcost(wires[i], costs, costs_tr, x, wires[i].y[0], dim_x, dim_y, num_of_threads);
+                #pragma omp critical
                 if (min_max_cost > result.first
                         || (min_sum_cost > result.second && min_max_cost == result.first)) {
                     
@@ -287,6 +288,7 @@ void parallel(wire_t *wires, cost_t *costs, cost_t *costs_tr, int num_of_wires, 
             #pragma omp parallel for num_threads(num_of_threads)
             for (int y = y_start; y < y_end; y++) {
                 std::pair<int, int> result = checkcost(wires[i], costs, costs_tr, wires[i].x[0], y, dim_x, dim_y, num_of_threads);
+                #pragma omp critical
                 if (min_max_cost > result.first
                         || (min_sum_cost > result.second && min_max_cost == result.first)) {
                     
@@ -412,9 +414,10 @@ int main(int argc, const char *argv[]) {
     std::string input_filename_string = std::string(input_filename);
     std::string input_filename_stripped = std::string(input_filename).substr(28, std::string(input_filename).length() - 28 - 4);
 
-    input_filename_stripped = input_filename_string.substr(input_filename_string.find_last_of("/\\") + 1, input_filename_string.length() - 4);
-    // printf(input_filename_stripped.c_str());
-    // printf("\n");
+    input_filename_stripped = input_filename_string.substr(input_filename_string.find_last_of("/\\") + 1);
+    input_filename_stripped = input_filename_stripped.substr(0, input_filename_stripped.length() - 4);
+    printf(input_filename_stripped.c_str());
+    printf("\n");
     std::string costs_filename = "costs_" + input_filename_stripped + "_" + std::to_string(num_of_threads) + ".txt";
     std::string wires_filename = "output_" + input_filename_stripped + "_" + std::to_string(num_of_threads) + ".txt";
     FILE *fpcosts = fopen(costs_filename.c_str(), "w+");

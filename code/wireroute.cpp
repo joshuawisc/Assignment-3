@@ -1,6 +1,6 @@
 /**
  * Parallel VLSI Wire Routing via OpenMP
- * Joshua Mathews(andrew_id 1), Nolan Mass(nmass)
+ * Joshua Mathews(jcmathew), Nolan Mass(nmass)
  */
 
 #include "wireroute.h"

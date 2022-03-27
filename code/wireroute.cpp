@@ -430,7 +430,7 @@ int main(int argc, const char *argv[]) {
     for (int y = 0; y < dim_y; y++) {
         for (int x = 0; x < dim_x; x++) {
             fprintf(fpcosts, "%d ", costs[y*dim_x + x]);
-            // printf("%d ", costs[y*dim_x + x]);
+            //printf("%d ", costs[y*dim_x + x]);
 
         }
         fprintf(fpcosts, "\n");
@@ -449,7 +449,10 @@ int main(int argc, const char *argv[]) {
         fprintf(fpwires, "\n");
     }
 
-    fclose(fpcosts);
-    fclose(fpwires);
+    fflush(fpcosts);
+    fflush(fpwires);
+
+    //fclose(fpcosts);
+    //fclose(fpwires);
     return 0;
 }
